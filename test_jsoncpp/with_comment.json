@@ -1,0 +1,9 @@
+// comment head
+{
+  // comment before
+  "key" : "value",
+  "name": "tom",
+  "ints": [1, 2, 3],
+  "fruits": ["apple", "pear", "banana"]
+  // comment after
+}// comment tail

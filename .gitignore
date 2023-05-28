@@ -1,0 +1,7 @@
+*/**/.idea
+cmake-build-*
+*/**/cmake-build-*
+*/**/*.mp4
+target
+*/**/target
+.clion*
