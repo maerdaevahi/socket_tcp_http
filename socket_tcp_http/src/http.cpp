@@ -5,14 +5,13 @@
 #include <stdlib.h>
 #include <assert.h>
 #include <unistd.h>
-#include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <sys/sendfile.h>
 #include "common_error.h"
 #include "url_codec.h"
 #include <dirent.h>
-#include <libgen.h>
+#include <cerrno>
 
 
 void init_header(kv * hd, const char * name, const char * value) {
@@ -46,7 +45,7 @@ do {\
 } while (0)
 
 
-void add_respons_header(http_response *hres, const char *name, const char * value);
+void add_response_header(http_response *hres, const char *name, const char * value);
 
 void encode_as_pathname(const http_context *hc, http_response *hres);
 
@@ -227,7 +226,7 @@ void free_http_context(void * ptr) {
 }
 
 void update_http_response(http_response * hres, const char * pathname, const char * content_type, const char * body) {
-    add_respons_header(hres, "content_type", content_type);
+    add_response_header(hres, "content_type", content_type);
     if (pathname) {
         strcpy(hres->pathname, pathname);
     }
@@ -238,7 +237,7 @@ void update_http_response(http_response * hres, const char * pathname, const cha
     }
 }
 
-void add_respons_header(http_response *hres, const char *name, const char * value) {
+void add_response_header(http_response *hres, const char *name, const char * value) {
     int i = 0;
     while (hres->headers[i]) {
         ++i;
@@ -265,7 +264,7 @@ void encode_as_body(const http_context *hc, http_response *hres) {
     sprintf(buf, "%s %s %s\r\n",hres->protocol, hres->code, hres->status);
     char tmp[32];
     sprintf(tmp, "%ld", strlen(hres->body));
-    add_respons_header(hres, "content-length", tmp);
+    add_response_header(hres, "content-length", tmp);
     for (kv ** ptr = hres->headers; *ptr; ++ptr) {
         sprintf(buf + strlen(buf), "%s: %s\r\n", (*ptr)->name, (*ptr)->value);
     }
@@ -287,7 +286,7 @@ void encode_as_pathname(const http_context *hc, http_response *hres) {
     fstat (fd, &attr);
     char tmp[32];
     sprintf(tmp, "%ld", attr.st_size);
-    add_respons_header(hres, "content-length", tmp);
+    add_response_header(hres, "content-length", tmp);
     for (kv ** ptr = hres->headers; *ptr; ++ptr) {
         sprintf(buf + strlen(buf), "%s: %s\r\n", (*ptr)->name, (*ptr)->value);
     }
@@ -325,6 +324,11 @@ void service(void * ptr) {
 #ifdef DEBUG
             printf("%s\n", pathname);
 #endif
+            int access_res = access(pathname, F_OK);
+            if (access_res == -1 && errno == ENOENT) {
+                update_http_response(&((http_context *)ptr)->hres, "static/404.html", "text/html", NULL);
+                return;
+            }
             struct stat attr;
             stat(pathname,&attr);
             if (S_ISREG(attr.st_mode)) {

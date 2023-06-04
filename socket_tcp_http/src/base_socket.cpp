@@ -33,7 +33,7 @@ void handle_sigchild(int signo) {
 }
 __attribute__((constructor)) void register_sig_handler() {
     printf("%s\n", __func__);
-    signal(SIGPIPE, handle_sigpipe);
+    signal(SIGPIPE, SIG_IGN);
     signal(SIGCHLD, handle_sigchild);
 }
 
