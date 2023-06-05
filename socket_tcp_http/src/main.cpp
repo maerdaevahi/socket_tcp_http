@@ -5,11 +5,13 @@
 #include "concurrency.h"
 #include "http.h"
 #include <unistd.h>
+#include "config.h"
 #define PROCESS 0
 #define THREAD 1
 #define SELECT 2
 #define POLL 3
 #define EPOLL 4
+#define CONFIG_PATHNAME "../../static/server_config.json"
 
 invoke_concurrency ic[5] = {do_multiple_process, do_multiple_thread, do_select, NULL, do_epoll};
 
@@ -17,8 +19,16 @@ invoke_concurrency determine_concurrency_way(int argc, char ** argv);
 
 int main(int argc, char ** const argv, char ** const envp) {
     setbuf(stdout, NULL);
-    chdir("../..");
-    int listen_fd = open_nonblock_ipv4_tcp_listen_socket(ANY_IP, DEFAULT_PORT);
+    server_config * cfg = parse_config(CONFIG_PATHNAME);
+    int listen_fd;
+    if (!cfg) {
+        chdir("../..");
+        listen_fd = open_nonblock_ipv4_tcp_listen_socket(ANY_IP, DEFAULT_PORT);
+    } else {
+        chdir(cfg->cwd ? cfg->cwd : "../..");
+        listen_fd = open_nonblock_ipv4_tcp_listen_socket(cfg->ip, cfg->port);
+    }
+
     net_app na;
     na.listen_fd = listen_fd;
     na.handle_connection = accept_connection;
@@ -29,6 +39,7 @@ int main(int argc, char ** const argv, char ** const envp) {
     na.free_context = free_http_context;
     invoke_concurrency ivk = determine_concurrency_way(argc, argv);
     ivk(&na);
+    free(cfg);
     return 0;
 }
 
