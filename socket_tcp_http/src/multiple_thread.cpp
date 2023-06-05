@@ -2,6 +2,8 @@
 #include <unistd.h>
 #include <pthread.h>
 #include <malloc.h>
+#include <cerrno>
+
 typedef struct thread_arg {
     net_app *na;
     int client_fd;
