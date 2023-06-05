@@ -60,10 +60,10 @@ int accept_connection(int listen_fd) {
 #endif
 }
 
-void set_noblock(int listen_fd) {
-    int flag = perror_exit_conditional(fcntl(listen_fd, F_GETFL), "fcntl");
+void set_noblock(int fd) {
+    int flag = perror_exit_conditional(fcntl(fd, F_GETFL), "fcntl");
     flag |= O_NONBLOCK;
-    perror_exit_conditional(fcntl(listen_fd, F_SETFL, flag), "fcntl");
+    perror_exit_conditional(fcntl(fd, F_SETFL, flag), "fcntl");
 }
 
 int open_ipv4_tcp_listen_socket(const char * ip, int port) {
@@ -73,6 +73,14 @@ int open_ipv4_tcp_listen_socket(const char * ip, int port) {
     set_listen(fd);
     return fd;
 }
+
+int open_nonblock_ipv4_tcp_listen_socket(const char * ip, int port) {
+    int fd = open_ipv4_tcp_listen_socket(ip, port);
+    set_noblock(fd);
+    return fd;
+}
+
+
 
 void set_listen(int listen_fd) { perror_exit_conditional(listen(listen_fd, 128), "listen"); }
 

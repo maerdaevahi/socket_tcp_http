@@ -1,8 +1,6 @@
 #include <sys/time.h>
-#include <sys/types.h>
 #include <unistd.h>
 #include "concurrency.h"
-#include "common_error.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include "thr/thread_pool.h"

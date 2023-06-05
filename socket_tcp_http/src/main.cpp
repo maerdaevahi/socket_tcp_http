@@ -11,14 +11,14 @@
 #define POLL 3
 #define EPOLL 4
 
-invoke_concurrency ic[5] = {do_multiple_process, do_multiple_thread, do_select};
+invoke_concurrency ic[5] = {do_multiple_process, do_multiple_thread, do_select, NULL, do_epoll};
 
 invoke_concurrency determine_concurrency_way(int argc, char ** argv);
 
 int main(int argc, char ** const argv, char ** const envp) {
     setbuf(stdout, NULL);
     chdir("../..");
-    int listen_fd = open_ipv4_tcp_listen_socket(ANY_IP, DEFAULT_PORT);
+    int listen_fd = open_nonblock_ipv4_tcp_listen_socket(ANY_IP, DEFAULT_PORT);
     net_app na;
     na.listen_fd = listen_fd;
     na.handle_connection = accept_connection;

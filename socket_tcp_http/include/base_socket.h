@@ -7,7 +7,9 @@ extern "C" {
 
 int open_ipv4_tcp_listen_socket(const char *ip, int port);
 
-void set_noblock(int listen_fd);
+int open_nonblock_ipv4_tcp_listen_socket(const char * ip, int port);
+
+void set_noblock(int fd);
 
 void enable_addr_reusable(int listen_fd);
 
