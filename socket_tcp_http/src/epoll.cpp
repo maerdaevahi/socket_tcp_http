@@ -31,23 +31,31 @@ typedef struct epoll_cb_arg {
     int fd;
 } epoll_cb_arg;
 
-epoll_cb_arg * register_event(epoll_info *ei, int peer_fd, void (*fun)(epoll_cb_arg *));
+void register_event(epoll_cb_arg * arg);
 void unregister_event(epoll_cb_arg * arg);
 void handle_read(epoll_cb_arg * arg);
 
-epoll_cb_arg * register_event(epoll_info *ei, int peer_fd, void (*fun)(epoll_cb_arg *)) {
+epoll_cb_arg *build_epoll_cb_arg(epoll_info *ei, int peer_fd, void (*fun)(epoll_cb_arg *));
+
+void register_event(epoll_cb_arg * arg) {
     struct epoll_event ev;
     ev.events = EPOLLIN | EPOLLET;
+    ev.data.ptr = arg;
+    epoll_ctl(arg->ei->epoll_fd, EPOLL_CTL_ADD, arg->fd, &ev);
+}
+
+epoll_cb_arg *build_epoll_cb_arg(epoll_info *ei, int peer_fd, void (*fun)(epoll_cb_arg *)) {
     epoll_cb_arg *arg = (epoll_cb_arg *)malloc(sizeof(epoll_cb_arg));
     arg->fun = fun;
     arg->ei = ei;
     arg->fd = peer_fd;
-    ev.data.ptr = arg;
-    epoll_ctl(ei->epoll_fd, EPOLL_CTL_ADD, peer_fd, &ev);
     return arg;
 }
 
 void unregister_event(epoll_cb_arg * arg) {
+    if (!arg) {
+        return;
+    }
     epoll_ctl(arg->ei->epoll_fd, EPOLL_CTL_DEL, arg->fd, NULL);
     free(arg);
 }
@@ -84,7 +92,8 @@ void handle_connection(epoll_cb_arg * arg) {
             break;
 #endif
         }
-        register_event(arg->ei, peer_fd, handle_read);
+        epoll_cb_arg * read_arg = build_epoll_cb_arg(arg->ei, peer_fd, handle_read);
+        register_event(read_arg);
 #if USE_CONCURRENCY
     }
 #endif
@@ -109,16 +118,15 @@ void init_epoll_info(epoll_info * ei, int max_count, net_app * na, ev_way way, .
 //void init_epoll_info(epoll_info * ei, int max_count, net_app * na, ev_way way, int initial_threads, int max_threads, int max_tasks) {
     ei->epoll_fd = epoll_create(1);
     ei->na = na;
-    ei->root_eca = register_event(ei, ei->na->listen_fd, handle_connection);
+    epoll_cb_arg *arg = build_epoll_cb_arg(ei, ei->na->listen_fd, handle_connection);
+    ei->root_eca = arg;
+    register_event(arg);
     ei->max_count = max_count;
     ei->events = (struct epoll_event *) malloc( max_count * sizeof(struct epoll_event));
     if (way == ASYN) {
         va_list valist;
         va_start(valist, way);
         ei->pool = (thread_pool *)malloc(sizeof(thread_pool));
-        if (valist) {
-
-        }
         int initial_threads = 1, max_threads = 1, max_tasks = 1;
         do {
             int n = va_arg(valist, int);
