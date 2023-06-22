@@ -1,5 +1,5 @@
 #include <stdlib.h>
-#include "thr/task_queue.h"
+#include "thr_c/task_queue.h"
 void init_task_queue(task_queue * cq, int size) {
     cq->start = 0;
     cq->end = 0;

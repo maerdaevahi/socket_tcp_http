@@ -1,6 +1,6 @@
 #include <pthread.h>
 #include <errno.h>
-#include "thr/thread_pool.h"
+#include "thr_c/thread_pool.h"
 
 void init_thread_pool(thread_pool * tp, int n_threads, int max_n_threads, int max_n_tasks) {
     if (n_threads <= 0 || max_n_threads <=0 || max_n_tasks <= 0 || n_threads > max_n_threads) {

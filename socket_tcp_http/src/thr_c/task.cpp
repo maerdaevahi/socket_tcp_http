@@ -1,4 +1,4 @@
-#include "thr/task.h"
+#include "thr_c/task.h"
 void assign_task(task * t, task * t1) {
     init_task(t, t1->fun, t1->arg);
 }

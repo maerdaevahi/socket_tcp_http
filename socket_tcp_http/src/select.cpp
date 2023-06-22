@@ -3,7 +3,7 @@
 #include "concurrency.h"
 #include <stdio.h>
 #include <stdlib.h>
-#include "thr/thread_pool.h"
+#include "thr_c/thread_pool.h"
 #define CLIENT_FDS_SIZE (FD_SETSIZE - 4)
 
 #define R 0

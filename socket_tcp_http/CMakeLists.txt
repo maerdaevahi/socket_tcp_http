@@ -4,7 +4,7 @@ project(socket_tcp_http)
 set(CMAKE_CXX_STANDARD 14)
 add_definitions(-DUSE_CONCURRENCY -DDEBUG)
 aux_source_directory(${CMAKE_CURRENT_SOURCE_DIR}/src SRC)
-aux_source_directory(${CMAKE_CURRENT_SOURCE_DIR}/src/thr SRC)
+aux_source_directory(${CMAKE_CURRENT_SOURCE_DIR}/src/thr_c SRC)
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include)
 add_link_options(-pthread)
 

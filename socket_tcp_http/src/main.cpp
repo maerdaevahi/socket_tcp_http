@@ -11,9 +11,10 @@
 #define SELECT 2
 #define POLL 3
 #define EPOLL 4
+#define EPOLL_OOP 5
 #define CONFIG_PATHNAME "../../static/server_config.json"
 
-invoke_concurrency ic[5] = {do_multiple_process, do_multiple_thread, do_select, NULL, do_epoll};
+invoke_concurrency ic[6] = {do_multiple_process, do_multiple_thread, do_select, NULL, do_epoll, do_epoll_oop};
 
 
 int get_way(int argc, char *const *argv, int way);
@@ -25,14 +26,14 @@ int main(int argc, char ** const argv, char ** const envp) {
     int listen_fd;
     if (!cfg) {
         chdir("../..");
-        if (way == EPOLL) {
+        if (way == EPOLL || way == EPOLL_OOP) {
             listen_fd = open_nonblock_ipv4_tcp_listen_socket(ANY_IP, DEFAULT_PORT);
         } else {
             listen_fd = open_ipv4_tcp_listen_socket(ANY_IP, DEFAULT_PORT);
         }
     } else {
         chdir(cfg->cwd ? cfg->cwd : "../..");
-        if (way == EPOLL) {
+        if (way == EPOLL || way == EPOLL_OOP) {
             listen_fd = open_nonblock_ipv4_tcp_listen_socket(cfg->ip, cfg->port);
         } else {
             listen_fd = open_ipv4_tcp_listen_socket(cfg->ip, cfg->port);
@@ -58,7 +59,7 @@ int get_way(int argc, char *const *argv, int way) {
         way = PROCESS;
     } else if (argc == 2) {
         way = atoi(argv[1]);
-        if (way < PROCESS || way > EPOLL) {
+        if (way < PROCESS || way > EPOLL_OOP) {
             way = PROCESS;
         }
     }  else {

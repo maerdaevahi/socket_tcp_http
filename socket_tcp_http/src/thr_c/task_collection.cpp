@@ -1,7 +1,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
-#include "thr/task_collection.h"
+#include "thr_c/task_collection.h"
 #define handle_error(en, msg) \
 do {\
     if (en) {\

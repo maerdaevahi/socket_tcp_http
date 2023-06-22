@@ -52,7 +52,7 @@ int accept_connection(int listen_fd) {
     return perror_exit_conditional(accept(listen_fd, (struct sockaddr *)&peer_addr, &peer_addr_len), "accept");
 #else
     int client_fd = perror_exit_conditional_extra_on_errno(
-            accept(listen_fd, (struct sockaddr *) &peer_addr, &peer_addr_len), "accept", EAGAIN, NULL);
+            accept(listen_fd, (struct sockaddr *) &peer_addr, &peer_addr_len), "accept", EAGAIN, ECHILD, NULL);
     char peer_ip[16] = {0};
     inet_ntop(AF_INET, &peer_addr.sin_addr.s_addr, peer_ip, sizeof(peer_ip));
     printf("accept connection from %s:%d\n", peer_ip, ntohs(peer_addr.sin_port));

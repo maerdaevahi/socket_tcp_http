@@ -1,5 +1,5 @@
 #include <stdlib.h>
-#include "thr/thread_queue.h"
+#include "thr_c/thread_queue.h"
 void init_thread_queue(thread_queue * cq, int size) {
     cq->start = 0;
     cq->end = 0;
