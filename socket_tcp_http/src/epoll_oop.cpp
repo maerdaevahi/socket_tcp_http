@@ -22,8 +22,12 @@ typedef enum {
 static void * ctx_set[1024] = {NULL};
 class epoll_cb_arg;
 
+typedef struct task_arg {
+    void * ei;
+    int fd;
+} task_arg;
+
 class epoll_oop_info {
-    friend class epoll_cb_arg;
     int epoll_fd;
     std::mutex mutex;
     epoll_cb_arg * root_eca;
@@ -31,34 +35,62 @@ class epoll_oop_info {
     int max_count;
     int ready_count;
     int timeout;
-    net_app * na;
     sword::thread_pool<sword::task> * pool;
+    net_app * na;
 public:
     epoll_oop_info(int max_count, net_app * na, ev_way way, ...);
     ~epoll_oop_info();
     void run();
+    int handle_connection(int fd);
     void process_read(int fd);
     void process_write(int fd);
+    void register_event(int fd, ev_tp et, void * eca);
+    void unregister_event(int fd);
+    bool is_asyn_supported();
+    void commit_asyn(int fd, ev_tp et);
+    static void process_read_asyn(task_arg * arg);
+    static void process_write_asyn(task_arg * arg);
 };
 
-typedef struct task_arg {
-    epoll_oop_info * ei;
-    int fd;
-} task_arg;
+int epoll_oop_info::handle_connection(int fd) {
+    int peer_fd = this->na->handle_connection(fd);
+    if (peer_fd != -1) {
+        void *ctx = this->na->mk_context(peer_fd);
+        if (ctx_set[peer_fd]) {
+            fprintf(stderr, "resource is not clean\n");
+            exit(1);
+        } else {
+            ctx_set[peer_fd] = ctx;
+        }
+    }
+    return peer_fd;
+}
+
+bool epoll_oop_info::is_asyn_supported() {
+    return this->pool;
+}
+
+void epoll_oop_info::commit_asyn(int fd, ev_tp et) {
+    task_arg *arg2Task = (task_arg *) malloc(sizeof(task_arg));
+    arg2Task->ei = this;
+    arg2Task->fd = fd;
+    sword::task task1((void *(*)(void *)) (et == RD ? epoll_oop_info::process_read_asyn : epoll_oop_info::process_write_asyn), arg2Task);
+    this->pool->commit_task(task1);
+}
 
 class epoll_cb_arg {
     int fd;
     epoll_oop_info * ei;
-public:
     void (epoll_cb_arg::*mem_fun)();
 public:
     epoll_cb_arg() = default;
     epoll_cb_arg(epoll_oop_info * ei, int peer_fd, void (epoll_cb_arg::*fun)());
-    void register_event(ev_tp et);
-    void unregister_event();
     void handle_read_event();
     void handle_write_event();
     void handle_connection_event();
+    void operator()() {
+        (this->*mem_fun)();
+    }
 };
 
 epoll_cb_arg::epoll_cb_arg(epoll_oop_info * ei, int peer_fd, void (epoll_cb_arg::*fun)()) {
@@ -67,7 +99,7 @@ epoll_cb_arg::epoll_cb_arg(epoll_oop_info * ei, int peer_fd, void (epoll_cb_arg:
     this->fd = peer_fd;
 }
 
-void epoll_cb_arg::register_event(ev_tp et) {
+void epoll_oop_info::register_event(int fd, ev_tp et, void * eca) {
     struct epoll_event ev;
     switch (et) {
         case RD:
@@ -80,20 +112,19 @@ void epoll_cb_arg::register_event(ev_tp et) {
             ev.events = EPOLLIN | EPOLLET;
             break;
     }
-    ev.data.ptr = this;
-    std::mutex * mtx = &this->ei->mutex;
+    ev.data.ptr = eca;
+    std::mutex * mtx = &this->mutex;
     mtx->lock();
-    epoll_ctl(this->ei->epoll_fd, EPOLL_CTL_ADD, this->fd, &ev);
+    epoll_ctl(this->epoll_fd, EPOLL_CTL_ADD, fd, &ev);
     mtx->unlock();
 }
 
-void epoll_cb_arg::unregister_event() {
-    std::mutex * mtx = &this->ei->mutex;
+void epoll_oop_info::unregister_event(int fd) {
+    std::mutex * mtx = &this->mutex;
     mtx->lock();
-    epoll_ctl(this->ei->epoll_fd, EPOLL_CTL_DEL, this->fd, NULL);
+    epoll_ctl(this->epoll_fd, EPOLL_CTL_DEL, fd, NULL);
     mtx->unlock();
     //free(this);
-    delete this;
 }
 
 void epoll_oop_info::process_read(int fd) {
@@ -108,7 +139,7 @@ void epoll_oop_info::process_read(int fd) {
     na->free_context(ctx);*/
     printf("_______________________________________%s______________________________________\n", __func__);
     epoll_cb_arg * read_arg = new epoll_cb_arg(this, fd, &epoll_cb_arg::handle_write_event);
-    read_arg->register_event(WR);
+    register_event(fd, WR, read_arg);
     printf("=======================================%s=======================================\n", __func__);
 }
 
@@ -124,72 +155,50 @@ void epoll_oop_info::process_write(int fd) {
     this->na->free_context(ctx);
 }
 
-static void process_read_asyn(task_arg * arg) {
-    epoll_oop_info * na = arg->ei;
+void epoll_oop_info::process_read_asyn(task_arg * arg) {
+    epoll_oop_info * na = (epoll_oop_info *)arg->ei;
     int fd = arg->fd;
     na->process_read(fd);
     free(arg);
 }
 
-void epoll_cb_arg::handle_read_event() {
-    printf("%s: %p, epoll_cb_arg * arg %p\n", __func__, &epoll_cb_arg::handle_read_event, this->mem_fun);
-    if (this->ei->pool) {
-        task_arg *arg2Task = (task_arg *) malloc(sizeof(task_arg));
-        arg2Task->ei = this->ei;
-        arg2Task->fd = this->fd;
-        sword::task task1((void *(*)(void *)) process_read_asyn, arg2Task);
-        this->ei->pool->commit_task(task1);
-    } else {
-        this->ei->process_read(this->fd);
-    }
-    this->unregister_event();
-}
-
-static void process_write_asyn(task_arg * arg) {
-    epoll_oop_info * na = arg->ei;
+void epoll_oop_info::process_write_asyn(task_arg * arg) {
+    epoll_oop_info * na = (epoll_oop_info *)arg->ei;
     int fd = arg->fd;
     na->process_write(fd);
     free(arg);
 }
 
+void epoll_cb_arg::handle_read_event() {
+    if (this->ei->is_asyn_supported()) {
+        this->ei->commit_asyn(this->fd, RD);
+    } else {
+        this->ei->process_read(this->fd);
+    }
+    this->ei->unregister_event(this->fd);
+    delete this;
+}
+
 void epoll_cb_arg::handle_write_event() {
-    printf("%s: %p, epoll_cb_arg * arg %p\n", __func__, &epoll_cb_arg::handle_write_event, this->mem_fun);
-    if (this->ei->pool) {
-        task_arg *arg2Task = (task_arg *) malloc(sizeof(task_arg));
-        arg2Task->ei = this->ei;
-        arg2Task->fd = this->fd;
-        sword::task task1((void *(*)(void *)) process_write_asyn, arg2Task);
-        this->ei->pool->commit_task(task1);
+    if (this->ei->is_asyn_supported()) {
+        this->ei->commit_asyn(this->fd, WR);
     } else {
         this->ei->process_write(this->fd);
     }
-    this->unregister_event();
+    this->ei->unregister_event(this->fd);
+    delete this;
 }
 
 void epoll_cb_arg::handle_connection_event() {
-    printf("%s: %p, epoll_cb_arg * arg %p\n", __func__, &epoll_cb_arg::handle_connection_event, this->mem_fun);
-#if USE_CONCURRENCY
     while (1) {
-#endif
-        int peer_fd = this->ei->na->handle_connection(this->fd);
+        int peer_fd = this->ei->handle_connection(this->fd);
         if (peer_fd == -1) {
             perror(__func__);
-#if USE_CONCURRENCY
             break;
-#endif
         }
         epoll_cb_arg * read_arg = new epoll_cb_arg(this->ei, peer_fd, &epoll_cb_arg::handle_read_event);
-        read_arg->register_event(RD);
-        void *ctx = this->ei->na->mk_context(peer_fd);
-        if (ctx_set[peer_fd]) {
-            fprintf(stderr, "resource is not clean\n");
-            exit(1);
-        } else {
-            ctx_set[peer_fd] = ctx;
-        }
-#if USE_CONCURRENCY
+        read_arg->ei->register_event(peer_fd, RD, read_arg);
     }
-#endif
 }
 
 epoll_oop_info::epoll_oop_info(int max_count, net_app * na, ev_way way, ...) {
@@ -197,7 +206,7 @@ epoll_oop_info::epoll_oop_info(int max_count, net_app * na, ev_way way, ...) {
     this->timeout = -1;
     this->na = na;
     this->root_eca = new epoll_cb_arg(this, na->listen_fd, &epoll_cb_arg::handle_connection_event);
-    this->root_eca->register_event(RD);
+    this->register_event(na->listen_fd, RD, this->root_eca);
     this->max_count = max_count;
     this->events = (struct epoll_event *) malloc( max_count * sizeof(struct epoll_event));
     if (way == ASYN) {
@@ -245,8 +254,7 @@ void epoll_oop_info::run() {
         }
         for (int i = 0; i < ready_count; ++i) {
             epoll_cb_arg * ecv = (epoll_cb_arg * )events[i].data.ptr;
-            void (epoll_cb_arg::*mem_fun)() = ecv->mem_fun;
-            (ecv->*mem_fun)();
+            (*ecv)();
         }
     }
 }
